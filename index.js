@@ -39,6 +39,14 @@ module.exports = function proxy(host, options) {
   var filter = options.filter;
   var limit = options.limit || '1mb';
 
+  var cache = {}
+  var buildCacheKey = function(method, path, body) {
+    return [method, path, body].join('+');
+  }
+  var cacheResponse = function(cacheKey, resBody) {
+    cache[cacheKey] = resBody;
+  }
+
   return function handleProxy(req, res, next) {
     if (filter && !filter(req, res)) next();
 
@@ -57,6 +65,13 @@ module.exports = function proxy(host, options) {
     }, function(err, bodyContent) {
       if (err) return next(err);
 
+      if (options.cachingEnabled) {
+        var cacheKey = buildCacheKey(req.method, req.baseUrl, bodyContent);
+        if (cache[cacheKey]) {
+          return res.send(cache[cacheKey]);
+        }
+      }
+
       var reqOpt = {
         hostname: (typeof host == 'function') ? host(req) : host.toString(),
         port: port,
@@ -70,7 +85,7 @@ module.exports = function proxy(host, options) {
       if (decorateRequest)
         reqOpt = decorateRequest(reqOpt) || reqOpt;
 
-      bodyContent = reqOpt.bodyContent;
+      bodyContent = req.bodyContent = reqOpt.bodyContent;
       delete reqOpt.bodyContent;
 
       if (typeof bodyContent == 'string')
@@ -111,10 +126,13 @@ module.exports = function proxy(host, options) {
                 next(new Error("'Content-Length' is already sent, the length of response data can not be changed"));
               }
 
+              if (options.cachingEnabled) cacheResponse(cacheKey, rsp);
+
               if (!sent)
                 res.send(rsp);
             });
           } else {
+            if (options.cachingEnabled) cacheResponse(cacheKey, rspData);
             res.send(rspData);
           }
         });
