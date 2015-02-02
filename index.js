@@ -41,7 +41,7 @@ module.exports = function proxy(host, options) {
   var filter = options.filter;
   var limit = options.limit || '1mb';
   var cachingEnabled = options.cachingEnabled;
-  var cacheDir = options.cacheDir || ("./temp/cache");
+  var cacheDir = options.cacheDir || ("./tmp/cache");
 
   if (cachingEnabled) {
     mkdirp.sync(cacheDir);
