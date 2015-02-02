@@ -5,6 +5,8 @@ var http = require('http');
 var https = require('https');
 var is = require('type-is');
 var getRawBody = require('raw-body');
+var fs = require('fs');
+var mkdirp = require('mkdirp');
 
 require('buffer');
 
@@ -38,13 +40,46 @@ module.exports = function proxy(host, options) {
   var forwardPath = options.forwardPath;
   var filter = options.filter;
   var limit = options.limit || '1mb';
+  var cachingEnabled = options.cachingEnabled;
+  var cacheDir = options.cacheDir || ("./temp/cache");
 
-  var cache = {}
-  var buildCacheKey = function(method, path, body) {
-    return [method, path, body].join('+');
+  if (cachingEnabled) {
+    mkdirp.sync(cacheDir);
   }
-  var cacheResponse = function(cacheKey, resBody) {
-    cache[cacheKey] = resBody;
+
+  var buildCacheKey = function(method, path, body) {
+    return [method, path, body].join('____');
+  }
+
+  var buildCachePath = function(cacheKey) {
+    return cacheDir + "/" + hashCode(cacheKey);
+  }
+
+  var buildCacheContentTypePath = function(cacheKey) {
+    return cacheDir + "/" + hashCode(cacheKey) + "_content-type";
+  }
+
+  var cacheExists = function(cacheKey) {
+    return fs.existsSync(buildCachePath(cacheKey));
+  }
+
+  var getCachedResponse = function(cacheKey) {
+    return fs.readFileSync(buildCachePath(cacheKey));
+  }
+
+  var getCachedResponseContentType = function(cacheKey) {
+    return fs.readFileSync(buildCacheContentTypePath(cacheKey));
+  }
+
+  var cacheResponse = function(cacheKey, res, resBody) {
+    if (!cacheExists(cacheKey)) {
+      if (contentType = res._headers['content-type']) {
+        fs.writeFileSync(buildCacheContentTypePath(cacheKey), contentType);
+      }
+      if (resBody) {
+        fs.writeFileSync(buildCachePath(cacheKey), resBody);
+      }
+    }
   }
 
   return function handleProxy(req, res, next) {
@@ -55,7 +90,7 @@ module.exports = function proxy(host, options) {
 
     path = forwardPath ? forwardPath(req, res) : url.parse(req.url).path;
 
-    var hds = extend(headers, req.headers, ['connection', 'host', 'content-length']);
+    var hds = extend(headers, req.headers, ['connection', 'host', 'content-length','accept-encoding']);
     hds.connection = 'close';
 
     // var hasRequestBody = 'content-type' in req.headers || 'transfer-encoding' in req.headers;
@@ -65,10 +100,12 @@ module.exports = function proxy(host, options) {
     }, function(err, bodyContent) {
       if (err) return next(err);
 
-      if (options.cachingEnabled) {
+      if (cachingEnabled) {
         var cacheKey = buildCacheKey(req.method, req.originalUrl, bodyContent);
-        if (cache[cacheKey]) {
-          respBody = cache[cacheKey].toString();
+        if (cacheExists(cacheKey)) {
+          respBody = getCachedResponse(cacheKey);
+          respContentType = getCachedResponseContentType(cacheKey);
+          res.set('content-type', respContentType);
           res.set('content-length', respBody.length);
           return res.send(respBody);
         }
@@ -126,14 +163,13 @@ module.exports = function proxy(host, options) {
               else if (rsp.length != rspData.length) {
                 next(new Error("'Content-Length' is already sent, the length of response data can not be changed"));
               }
-
-              if (options.cachingEnabled) cacheResponse(cacheKey, rsp);
+              if (cachingEnabled) cacheResponse(cacheKey, res, rsp);
 
               if (!sent)
                 res.send(rsp);
             });
           } else {
-            if (options.cachingEnabled) cacheResponse(cacheKey, rspData);
+            if (cachingEnabled) cacheResponse(cacheKey, res, rspData);
             res.send(rspData);
           }
         });
@@ -175,4 +211,13 @@ function extend(obj, source, skips) {
   }
 
   return obj;
+}
+
+hashCode = function(str) {
+  var hash = 0;
+  for (i = 0; i < str.length; i++) {
+      char = str.charCodeAt(i);
+      hash = char + (hash << 6) + (hash << 16) - hash;
+  }
+  return hash;
 }

@@ -32,22 +32,29 @@
     "supertest": "^0.13.0"
   },
   "dependencies": {
+    "mkdirp": "^0.5.0",
     "type-is": "^1.2.0",
     "raw-body": "^1.1.6"
   },
-  "contributors": [{
+  "contributors": [
+    {
       "name": "Liam Bennett"
-    }, {
+    },
+    {
       "name": "eldereal",
       "url": "https://github.com/eldereal"
-    }, {
+    },
+    {
       "name": "Saulius Menkevičius",
       "url": "https://github.com/razzmatazz"
-    }, {
+    },
+    {
       "name": "Jérémy Lal",
       "email": "kapouer@melix.org"
-    }, {
+    },
+    {
       "name": "Wei Gao",
       "email": "jky239@gmail.com"
-    }]
+    }
+  ]
 }
