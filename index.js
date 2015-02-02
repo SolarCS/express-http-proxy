@@ -68,7 +68,9 @@ module.exports = function proxy(host, options) {
       if (options.cachingEnabled) {
         var cacheKey = buildCacheKey(req.method, req.originalUrl, bodyContent);
         if (cache[cacheKey]) {
-          return res.send(cache[cacheKey]);
+          respBody = cache[cacheKey].toString();
+          res.set('content-length', respBody.length);
+          return res.send(respBody);
         }
       }
 
