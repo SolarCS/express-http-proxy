@@ -81,7 +81,7 @@ module.exports = function proxy(host, options) {
   }
 
   return function handleProxy(req, res, next) {
-    if (filter && !filter(req, res)) next();
+    if (filter && !filter(req, res)) return next();
 
     var headers = options.headers || {};
     var path;
