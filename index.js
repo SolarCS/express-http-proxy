@@ -42,6 +42,7 @@ module.exports = function proxy(host, options) {
   var limit = options.limit || '1mb';
   var cachingEnabled = options.cachingEnabled;
   var cacheDir = options.cacheDir || ("./tmp/cache");
+  var cacheablePattern = options.cacheablePattern;
 
   if (cachingEnabled) {
     mkdirp.sync(cacheDir);
@@ -49,27 +50,33 @@ module.exports = function proxy(host, options) {
 
   var buildCacheKey = function(method, path, body) {
     return [method, path, body].join('____');
-  }
+  };
 
   var buildCachePath = function(cacheKey) {
     return cacheDir + "/" + hashCode(cacheKey);
-  }
+  };
 
   var buildCacheContentTypePath = function(cacheKey) {
     return cacheDir + "/" + hashCode(cacheKey) + "_content-type";
-  }
+  };
 
   var cacheExists = function(cacheKey) {
     return fs.existsSync(buildCachePath(cacheKey));
-  }
+  };
 
   var getCachedResponse = function(cacheKey) {
     return fs.readFileSync(buildCachePath(cacheKey));
-  }
+  };
 
   var getCachedResponseContentType = function(cacheKey) {
     return fs.readFileSync(buildCacheContentTypePath(cacheKey));
-  }
+  };
+
+  var pathMatchesCacheablePattern = function(path, pattern) {
+    if (!pattern) return true;
+    if (!(pattern instanceof RegExp)) pattern = new RegExp(pattern);
+    return pattern.test(path);
+  };
 
   var cacheResponse = function(cacheKey, res, resBody) {
     if (!cacheExists(cacheKey) && resBody) {
@@ -78,7 +85,7 @@ module.exports = function proxy(host, options) {
       }
       fs.writeFileSync(buildCachePath(cacheKey), resBody);
     }
-  }
+  };
 
   return function handleProxy(req, res, next) {
     if (filter && !filter(req, res)) return next();
@@ -98,7 +105,7 @@ module.exports = function proxy(host, options) {
     }, function(err, bodyContent) {
       if (err) return next(err);
 
-      if (cachingEnabled) {
+      if (cachingEnabled && pathMatchesCacheablePattern(req.originalUrl, cacheablePattern)) {
         var cacheKey = buildCacheKey(req.method, req.originalUrl, bodyContent);
         if (cacheExists(cacheKey)) {
           respBody = getCachedResponse(cacheKey);
@@ -161,13 +168,13 @@ module.exports = function proxy(host, options) {
               else if (rsp.length != rspData.length) {
                 next(new Error("'Content-Length' is already sent, the length of response data can not be changed"));
               }
-              if (cachingEnabled) cacheResponse(cacheKey, res, rsp);
+              if (cachingEnabled && cacheKey) cacheResponse(cacheKey, res, rsp);
 
               if (!sent)
                 res.send(rsp);
             });
           } else {
-            if (cachingEnabled) cacheResponse(cacheKey, res, rspData);
+            if (cachingEnabled && cacheKey) cacheResponse(cacheKey, res, rspData);
             res.send(rspData);
           }
         });
