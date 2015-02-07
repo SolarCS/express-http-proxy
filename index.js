@@ -79,7 +79,7 @@ module.exports = function proxy(host, options) {
   };
 
   var cacheResponse = function(cacheKey, res, resBody) {
-    if (!cacheExists(cacheKey) && resBody) {
+    if (!cacheExists(cacheKey) && /^2|^3/.test(res.statusCode) && resBody) {
       if (contentType = res._headers['content-type']) {
         fs.writeFileSync(buildCacheContentTypePath(cacheKey), contentType);
       }
